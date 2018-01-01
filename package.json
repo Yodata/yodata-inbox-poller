@@ -1,0 +1,30 @@
+{
+  "name": "yodata-inbox-poller",
+  "version": "0.0.1",
+  "description": "Simple poller for processing messages from a linked-data inbox container",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "DEBUG=poller node app"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yodata/yodata-inbox-poller.git"
+  },
+  "author": "Dave Duran <dave@yodata.io> (https://yodata.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Yodata/yodata-inbox-poller/issues"
+  },
+  "homepage": "https://github.com/Yodata/yodata-inbox-poller#readme",
+  "dependencies": {
+    "async": "^2.6.0",
+    "auto-bind": "^1.1.0",
+    "axios": "^0.17.1",
+    "debug": "^3.1.0",
+    "lodash.get": "^4.4.2"
+  },
+  "devDependencies": {
+    "jest": "^22.0.4"
+  }
+}
