@@ -1,0 +1,16 @@
+module.exports.SERVICE_PROCESS = 'service:process';
+module.exports.MESSAGE_PROCESS = 'message:process';
+module.exports.INBOX_FETCH = 'inbox:fetch';
+module.exports.SERVICE_START = 'service:start';
+module.exports.SERVICE_STOP = 'service:stop';
+module.exports.SERVICE_STOP_COMPLETED = 'service:stop:completed';
+module.exports.INBOX_FETCH_COMPLETED = 'inbox:fetch:completed';
+module.exports.INBOX_FETCH_FAILED = 'inbox:fetch:failed';
+module.exports.INBOX_EMPTY = 'inbox:empty';
+module.exports.RESPONSE_PROCESS_COMPLETED = 'response:process:completed';
+module.exports.RESPONSE_PROCESS_FAILED = 'response:process:failed';
+module.exports.MESSAGE_PROCESS_COMPLETED = 'message:process:completed';
+module.exports.MESSAGE_PROCESS_FAILED = 'message:process:failed';
+module.exports.SERVICE_PROCESS_START = 'service:process:start';
+module.exports.SERVICE_PROCESS_COMPLETED = 'service:process:completed';
+module.exports.SERVICE_PROCESS_FAILED = 'service:process:failed';

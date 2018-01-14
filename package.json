@@ -25,6 +25,8 @@
     "lodash.get": "^4.4.2"
   },
   "devDependencies": {
-    "jest": "^22.0.4"
+    "expect": "^22.0.3",
+    "jest": "^22.0.4",
+    "sinon": "^4.1.3"
   }
 }

@@ -1,135 +1,174 @@
 'use strict';
+const {
+  SERVICE_START,
+  SERVICE_PROCESS_START,
+  INBOX_FETCH_FAILED,
+  INBOX_EMPTY,
+  INBOX_FETCH_COMPLETED,
+  MESSAGE_PROCESS_FAILED,
+  MESSAGE_PROCESS_COMPLETED,
+  SERVICE_PROCESS_FAILED,
+  SERVICE_PROCESS_COMPLETED,
+  SERVICE_STOP,
+  SERVICE_STOP_COMPLETED,
+  RESPONSE_PROCESS_FAILED,
+  RESPONSE_PROCESS_COMPLETED
+} = require('./constants');
 
 const EventEmitter = require('events').EventEmitter;
 const Inbox = require('./inbox');
-const async = require('async');
+const forever = require('async/forever');
 const auto = require('auto-bind');
 const debug = require('debug')('poller');
-const requiredOptions = [
-  'inboxURL',
-  'handleMessage'
-];
-
-class InboxError extends Error {
-  constructor() {
-    super(Array.from(arguments));
-    this.name = this.constructor.name;
-  }
-}
-
-function validate(options) {
-  requiredOptions.forEach((option) => {
-    if (!options[option]) {
-      throw new Error('Missing option [' + option + '].');
-    }
-  });
-}
-
-function isAuthenticationError(err) {
-  return (err.statusCode === 403 || err.code === 'CredentialsError');
-}
+const assert = require('assert');
+const dispatch = require('./dispatch');
 
 class Poller extends EventEmitter {
-  constructor(options) {
+  constructor(options = {}) {
     super();
-    validate(options);
-
+    assert.ok(options.inboxURL, 'inboxURL is required.');
+    assert.ok(options.handleMessage, 'handleMessage is required.');
     this.inboxURL = options.inboxURL;
     this.handleMessage = options.handleMessage;
+    this.waitTimeSeconds = options.waitTimeSeconds || 5;
+    this.inbox = options.inbox || new Inbox({inboxURL: this.inboxURL});
     this.stopped = true;
-    this.waitTimeSeconds = options.waitTimeSeconds || 20;
-    this.authenticationErrorTimeout = options.authenticationErrorTimeout || 10000;
-
-    this.inbox = new Inbox({inboxURL: this.inboxURL});
-
+    dispatch.on('dispatch', event => this._handleDispatch(event));
     auto(this);
   }
 
-  static create(options) {
-    return new Poller(options);
+  static create(inboxURL, handleMessage, options) {
+    return new Poller({inboxURL, handleMessage, ...options});
+  }
+
+  stop(error, value) {
+    if (!this.stopped) {
+      this.stopped = true;
+      let event = {
+        type:      SERVICE_STOP,
+        startTime: Date.now()
+      };
+      if (error)
+        event.error = error;
+      if (value) {
+        event.value = value;
+      }
+      return dispatch.event(event);
+    }
   }
 
   start() {
     if (this.stopped) {
-      debug('Starting poller');
       this.stopped = false;
-      this._poll();
+      dispatch.event({type: SERVICE_START, startTime: Date.now()});
+      forever(this.run, this._exit);
     }
   }
 
-  stop() {
-    debug('Stopping poller');
-    this.stopped = true;
-  }
-
-  _poll() {
-    if (!this.stopped) {
-      debug('Polling for messages');
-      this.inbox.get()
-          .then(messages => this._handleInboxResponse(undefined, messages))
-          .catch(this._handleInboxResponse);
+  run(next) {
+    if (this.stopped) {
+      next(new Error(SERVICE_STOP));
     } else {
-      this.emit('stopped');
+      let event = {};
+      event.type = SERVICE_PROCESS_START;
+      event.startTime = Date.now();
+      dispatch.event(event);
+      this._poll()
+          .then(this._processResponse)
+          .then(response => {
+            event.type = SERVICE_PROCESS_COMPLETED;
+            event.endTime = Date.now();
+            event.result = response;
+            dispatch.event(event);
+            this._wait(next, event);
+          })
+          .catch(error => {
+            event.type = SERVICE_PROCESS_FAILED;
+            event.endTime = Date.now();
+            event.error = error;
+            dispatch.event(event);
+            this.stop(error, event);
+            next(error, event);
+          });
     }
   }
 
-  _handleInboxResponse(err, messages) {
-    const poller = this;
-
-    if (err) {
-      this.emit('error', new InboxError('Get messages failed: ' + err.message));
-    }
-
-    if (messages && messages.length > 0) {
-      async.each(messages, this._processMessage, () => {
-        // start polling again once all of the messages have been processed
-        poller.emit('response_processed');
-        poller._poll();
-      });
-    } else if (messages && messages.length === 0) {
-      this.emit('empty');
-      this._poll();
-    } else if (err && isAuthenticationError(err)) {
-      // there was an authentication error, so wait a bit before repolling
-      debug('There was an authentication error. Pausing before retrying.');
-      setTimeout(this._poll.bind(this), this.authenticationErrorTimeout);
-    } else {
-      // there were no messages, so start polling again
-      this._poll();
+  _handleDispatch(event) {
+    if (event && event.type) {
+      debug(event);
+      this.emit(event.type, event);
+      return event;
     }
   }
 
-  _processMessage(message, cb) {
-    const poller = this;
-
-    this.emit('message_received', message);
-    async.series([
-      function handleMessage(done) {
-        try {
-          poller.handleMessage(message, done);
-        } catch (err) {
-          done(new Error('Unexpected message handler failure: ' + err.message));
-        }
-      },
-      function deleteMessage(done) {
-        poller._deleteMessage(message, done);
-      }
-    ], (err) => {
-      if (err) {
-        if (err.name === InboxError.name) {
-          poller.emit('error', err, message);
-        } else {
-          poller.emit('processing_error', err, message);
-        }
+  /**
+   * Fetches messages from inboxURL
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _poll(url) {
+    try {
+      let response = await this.inbox.get(url);
+      if (response.error) {
+        let error = new Error(response.statusText);
+        return dispatch.error(INBOX_FETCH_FAILED, error, response);
       } else {
-        poller.emit('message_processed', message);
+        return dispatch.send(INBOX_FETCH_COMPLETED, response);
       }
-      cb();
-    });
+    } catch (error) {
+      return dispatch.error(INBOX_FETCH_FAILED, error);
+    }
   }
 
-  _deleteMessage(message, cb) {
-    cb();
+  async _processMessage(message) {
+    try {
+      let result = await this.handleMessage(message);
+      return dispatch.send(MESSAGE_PROCESS_COMPLETED, {message, result});
+    } catch (error) {
+      return dispatch.error(MESSAGE_PROCESS_FAILED, error, {message});
+    }
+  }
+
+  /**
+   * Processes all messages found in response.value.messages
+   * @param response
+   * @returns {Promise<*>}
+   * @private
+   * @event Poller#inbox:fetch:completed
+   * @event Poller#inbox:fetch:failed
+   * @event Poller
+   *
+   */
+  async _processResponse(response) {
+    const processMessage = this._processMessage;
+    if (response && response.type === INBOX_FETCH_COMPLETED) {
+      const {messages} = response.value;
+      if (Array.isArray(messages)) {
+        if (messages.length === 0) {
+          return dispatch.send(INBOX_EMPTY);
+        } else {
+          messages.forEach(processMessage);
+          return dispatch.send(RESPONSE_PROCESS_COMPLETED, {messagesProcessed: messages.length});
+        }
+      }
+      else {
+        let error = new Error('an unexpected error occurred while processing messages');
+        this.stop(dispatch.error(RESPONSE_PROCESS_FAILED, error, {messages}));
+        throw error;
+      }
+    } else {
+      return response;
+    }
+  }
+
+  _wait(cb, value) {
+    let waitTime = this.waitTimeSeconds * 1000;
+    dispatch.send('service:wait', {waitTime});
+    setTimeout(() => cb(null, value), waitTime);
+  }
+
+  _exit(error, value) {
+    dispatch.send(SERVICE_STOP_COMPLETED, value, error);
   }
 }
 
