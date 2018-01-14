@@ -1,6 +1,6 @@
 # yodata-inbox-poller
 
-simple poller for processing messages from a yodata (LDN) inbox. 
+simple poller for processing messages from a yodata (LDN) inbox.
 
 ## Installation
 
@@ -11,28 +11,48 @@ npm install yodata-inbox-poller --save
 ## Usage
 
 ```js
-const Poller = require('yodata-inbox-poller');
+const Poller = require("yodata-inbox-poller");
 
-const app = Poller.create({
-  inboxURL: 'https://dave.yodata.me/inbox/',
-  handleMessage: (message, done) => {
+const app = new Poller({
+  inboxURL: "https://dave.yodata.me/inbox/",
+  handleMessage: async message => {
     // do some work with `message`
-    done();
-    // return an error message 
-    done('error message'); // will prevent message from being deleted
+    let result = message;
+
+    // throw to fire 'message:process:failed'
+    throw new Error("the message failed to process");
+
+    // always return (with an optional result) to resolve
+    // and fire 'message:process:completed'
+    return result;
   }
 });
 
-app.on('error', (err) => {
-  console.log(err.message);
+app.on("message:process:completed", event => {
+  console.log(event);
+  // event value:
+  // {
+  //   type: message:process:completed,
+  //   value: (your returned value)
+  // }
+});
+
+app.on("message:process:failed", event => {
+  console.log(event);
+  // event value:
+  // {
+  //   type: message:process:failed
+  //   error: [Error: the message failed to process]
+  //   value: {
+  //     message: {..}
+  //   }
+  // }
 });
 
 app.start();
 ```
 
 * The queue is polled continuously for messages.
-* Messages are deleted from the inbox once `done()` is called.
-* Calling `done(err)` with an error object will cause the message to be left in the box.
 * By default messages are processed one at a time – a new message won't be received until the first one has been processed.
 
 ### Credentials
@@ -46,26 +66,20 @@ export YODATA_API_KEY=...
 If you need to specify your credentials manually, you can use a pre-configured inbox instance.
 
 ```js
-const poller = require('yodata-inbox-poller');
-const Inbox = require('yodata-inbox-client');
+const Poller = require("yodata-inbox-poller");
+const Inbox = require("yodata-inbox-client");
 
-const inbox = new Inbox({
+const customInbox = new Inbox({
+  inboxURL: "url"
   headers: {
-    'x-api-key': "xxx"
+    "x-api-key": "xxx"
   }
 });
 
-const app = poller.create({
-  inboxURL: 'https://dave.yodata.me/inbox/',
-  handleMessage: (message, done) => {
-    // ...
-    done();
-  },
-  inbox: inbox
-});
-
-app.on('error', (err) => {
-  console.log(err.message);
+const app = new Poller({
+  inboxURL: "https://dave.yodata.me/inbox/",
+  handleMessage: async (message) => {...},
+  inbox: customInbox
 });
 
 app.start();
@@ -73,7 +87,7 @@ app.start();
 
 ## API
 
-### `poller.create(options)`
+### `new Poller(options)`
 
 Creates a new poller.
 
@@ -95,13 +109,29 @@ Stop polling for messages.
 
 Each poller is an [`EventEmitter`](http://nodejs.org/api/events.html) and emits the following events:
 
-|Event|Params|Description|
-|-----|------|-----------|
-|`error`|`err`, `[message]`|Fired when an error occurs interacting with the queue. If the error correlates to a message, that error is included in Params|
-|`processing_error`|`err`, `message`|Fired when an error occurs processing the message.|
-|`message_received`|`message`|Fired when a message is received.|
-|`message_processed`|`message`|Fired when a message is successfully processed and removed from the queue.|
-|`response_processed`|None|Fired after one batch of items (up to `batchSize`) has been successfully processed.|
-|`stopped`|None|Fired when the poller finally stops its work.|
-|`empty`|None|Fired when the queue is empty (All messages have been consumed).|
+```javascript
+// file: /constants.js
+// .start()
+module.exports.SERVICE_START = "service:start";
+// .stop(error value)
+module.exports.SERVICE_STOP = "service:stop";
+module.exports.SERVICE_STOP_COMPLETED = "service:stop:completed";
 
+// .run(next) main event loop
+module.exports.SERVICE_PROCESS_START = "service:process:start";
+module.exports.SERVICE_PROCESS_COMPLETED = "service:process:completed";
+module.exports.SERVICE_PROCESS_FAILED = "service:process:failed";
+
+// _poll()
+module.exports.INBOX_FETCH_COMPLETED = "inbox:fetch:completed";
+module.exports.INBOX_FETCH_FAILED = "inbox:fetch:failed";
+module.exports.INBOX_EMPTY = "inbox:empty";
+
+// .processResponse(inboxResponse)
+module.exports.RESPONSE_PROCESS_COMPLETED = "response:process:completed";
+module.exports.RESPONSE_PROCESS_FAILED = "response:process:failed";
+
+// .handleMessage(message)
+module.exports.MESSAGE_PROCESS_COMPLETED = "message:process:completed";
+module.exports.MESSAGE_PROCESS_FAILED = "message:process:failed";
+```
