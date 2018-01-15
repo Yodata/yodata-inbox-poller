@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 const {
   SERVICE_START,
   SERVICE_PROCESS_START,
@@ -13,26 +13,26 @@ const {
   SERVICE_STOP_COMPLETED,
   RESPONSE_PROCESS_FAILED,
   RESPONSE_PROCESS_COMPLETED
-} = require('./constants');
+} = require("./constants");
 
-const EventEmitter = require('events').EventEmitter;
-const Inbox = require('./inbox');
-const forever = require('async/forever');
-const auto = require('auto-bind');
-const assert = require('assert');
-const dispatch = require('./dispatch');
+const EventEmitter = require("events").EventEmitter;
+const Inbox = require("./inbox");
+const forever = require("async/forever");
+const auto = require("auto-bind");
+const assert = require("assert");
+const dispatch = require("./dispatch");
 
 class Poller extends EventEmitter {
   constructor(options = {}) {
     super();
-    assert.ok(options.inboxURL, 'inboxURL is required');
-    assert.ok(options.handleMessage, 'handleMessage is required');
+    assert.ok(options.inboxURL, "inboxURL is required");
+    assert.ok(options.handleMessage, "handleMessage is required");
     this.inboxURL = options.inboxURL;
     this.handleMessage = options.handleMessage;
     this.waitTimeSeconds = options.waitTimeSeconds || 5;
     this.inbox = options.inbox || new Inbox({inboxURL: this.inboxURL});
     this.stopped = true;
-    dispatch.on('dispatch', event => this._handleDispatch(event));
+    dispatch.on("dispatch", event => this._handleDispatch(event));
     auto(this);
   }
 
@@ -74,10 +74,10 @@ class Poller extends EventEmitter {
           .then(this._processResponse)
           .then(result => {
             let nextEvent = dispatch.event({
-                ...startEvent,
-              type:      SERVICE_PROCESS_COMPLETED,
-              endTime:   Date.now(),
-              result:    result
+              ...startEvent,
+              type:    SERVICE_PROCESS_COMPLETED,
+              endTime: Date.now(),
+              result:  result
             });
             if (result && result.type === RESPONSE_PROCESS_COMPLETED) {
               next(null, nextEvent);
@@ -113,21 +113,39 @@ class Poller extends EventEmitter {
       let response = await this.inbox.get(url);
       if (response.error) {
         let error = new Error(response.statusText);
-        return dispatch.error(INBOX_FETCH_FAILED, error, response);
+        return dispatch.event({
+          type:   INBOX_FETCH_FAILED,
+          error:  error,
+          result: response
+        });
       } else {
-        return dispatch.send(INBOX_FETCH_COMPLETED, response);
+        return dispatch.event({
+          type: INBOX_FETCH_COMPLETED,
+          result: response
+        });
       }
     } catch (error) {
-      return dispatch.error(INBOX_FETCH_FAILED, error);
+      return dispatch.event({
+        type:  INBOX_FETCH_FAILED,
+        error: error
+      });
     }
   }
 
   async _processMessage(message) {
     try {
-      let result = await this.handleMessage(message);
-      return dispatch.send(MESSAGE_PROCESS_COMPLETED, {message, result});
+      let response = await this.handleMessage(message);
+      return dispatch.event({
+        type:   MESSAGE_PROCESS_COMPLETED,
+        object: message,
+        result: response
+      });
     } catch (error) {
-      return dispatch.error(MESSAGE_PROCESS_FAILED, error, {message});
+      return dispatch.event({
+        type:   MESSAGE_PROCESS_FAILED,
+        object: message,
+        error:  error,
+      });
     }
   }
 
@@ -144,17 +162,23 @@ class Poller extends EventEmitter {
   async _processResponse(response) {
     const processMessage = this._processMessage;
     if (response && response.type === INBOX_FETCH_COMPLETED) {
-      const {messages} = response.value;
+      const {messages} = response.result;
       if (Array.isArray(messages)) {
         if (messages.length === 0) {
-          return dispatch.send(INBOX_EMPTY);
+          return dispatch.event({type: INBOX_EMPTY});
         } else {
           messages.forEach(processMessage);
-          return dispatch.send(RESPONSE_PROCESS_COMPLETED, {messagesProcessed: messages.length});
+          return dispatch.event({
+            type:   RESPONSE_PROCESS_COMPLETED,
+            result: {
+              messagesProcessed: messages.length
+            }
+          });
         }
-      }
-      else {
-        let error = new Error('an unexpected error occurred while processing messages');
+      } else {
+        let error = new Error(
+            "an unexpected error occurred while processing messages"
+        );
         this.stop(dispatch.error(RESPONSE_PROCESS_FAILED, error, {messages}));
         throw error;
       }
@@ -165,12 +189,12 @@ class Poller extends EventEmitter {
 
   _wait(callback, data) {
     let waitTime = this.waitTimeSeconds * 1000;
-    dispatch.send('service:wait', {waitTime});
+    dispatch.send("service:wait", {waitTime});
     setTimeout(() => callback(null, data), waitTime);
   }
 
   _exit(error, value) {
-    console.log('EXIT CALLED');
+    console.log("EXIT CALLED");
     dispatch.send(SERVICE_STOP_COMPLETED, value, error);
   }
 }

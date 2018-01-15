@@ -1,6 +1,6 @@
-'use strict';
-const expect = require('expect');
-const sinon = require('sinon');
+"use strict";
+const expect = require("expect");
+const sinon = require("sinon");
 
 const {
   SERVICE_START,
@@ -16,64 +16,43 @@ const {
   SERVICE_STOP_COMPLETED,
   RESPONSE_PROCESS_COMPLETED,
   RESPONSE_PROCESS_FAILED
-} = require('../constants');
+} = require("../constants");
 
-const Poller = require('..');
-const inbox = jest.genMockFromModule('../inbox');
+const Poller = require("..");
+const inbox = jest.genMockFromModule("../inbox");
 
-// events
-// const message = {type: 'message-type'};
-// const message1 = {
-//   id:         '1',
-//   type:       'Notification',
-//   instrument: 'message-instrument',
-//   target:     'message-target',
-//   object:     {
-//     type: 'action-type'
-//   }
-// };
-// const message2 = {
-//   id:         '2',
-//   type:       'Notification',
-//   instrument: 'message-instrument',
-//   target:     'message-target',
-//   object:     {
-//     type: 'action-type'
-//   }
-// };
-
-describe('Poller', () => {
+describe("Poller", () => {
   let poller,
-      handleMessage,
-      inboxURL,
-      waitTimeSeconds,
-      pollerConfig,
-      onServiceStart,
-      onServiceProcessCompleted,
-      onServiceProcessFailed,
-      onInboxFetchFailed,
-      onInboxFetchCompleted,
-      onServiceProcessStart,
-      onInboxEmpty,
-      onMessageProcessCompleted,
-      onMessageProcessFailed,
-      onServiceStop,
-      onServiceStopCompleted,
-      handleMessageResponse,
-      message,
-      inboxResponse;
+    handleMessage,
+    inboxURL,
+    waitTimeSeconds,
+    pollerConfig,
+    onServiceStart,
+    onServiceProcessCompleted,
+    onServiceProcessFailed,
+    onInboxFetchFailed,
+    onInboxFetchCompleted,
+    onServiceProcessStart,
+    onInboxEmpty,
+    onMessageProcessCompleted,
+    onMessageProcessFailed,
+    onServiceStop,
+    onServiceStopCompleted,
+    handleMessageResponse,
+    message,
+    inboxResponse;
 
   beforeEach(() => {
-    message = {id: 'messageid', type: 'message-type'};
+    message = { id: "messageid", type: "message-type" };
     inboxResponse = {
-      status:   200,
+      status: 200,
       messages: [message, message]
     };
     inbox.get = sinon.stub().resolves(inboxResponse);
-    handleMessageResponse = 'handle-message-response';
+    handleMessageResponse = "handle-message-response";
     handleMessage = jest
-        .fn()
-        .mockReturnValue(Promise.resolve(handleMessageResponse));
+      .fn()
+      .mockReturnValue(Promise.resolve(handleMessageResponse));
 
     onServiceStart = jest.fn().mockName(SERVICE_START);
     onInboxFetchCompleted = jest.fn().mockName(INBOX_FETCH_COMPLETED);
@@ -84,7 +63,7 @@ describe('Poller', () => {
     onServiceStop = jest.fn().mockName(SERVICE_STOP);
     onServiceStopCompleted = jest.fn().mockName(SERVICE_STOP_COMPLETED);
 
-    inboxURL = 'some-url';
+    inboxURL = "some-url";
     waitTimeSeconds = 1;
     pollerConfig = {
       inboxURL,
@@ -99,31 +78,31 @@ describe('Poller', () => {
     poller.removeAllListeners();
   });
 
-  describe('._handleDispatch', ()=>{
+  describe("._handleDispatch", () => {
     let handler, event;
 
-    beforeEach(()=>{
+    beforeEach(() => {
       handler = jest.fn();
-      poller.on('foo', handler);
+      poller.on("foo", handler);
     });
 
     test(`._handleDispatch(event) emits(event.type, event)`, () => {
-      event = {type: 'foo'};
+      event = { type: "foo" };
       poller._handleDispatch(event);
       expect(handler).toHaveBeenCalledWith(event);
     });
 
     test(`._handleDispatch(event) no event.type does not emit`, () => {
-      event = 'nofoo';
+      event = "nofoo";
       poller._handleDispatch(event);
       expect(handler).not.toHaveBeenCalled();
     });
   });
 
-  describe('.create', () => {
+  describe(".create", () => {
     test(`.create(inboxURL, handleMessage)`, () => {
-      let inboxURL = 'create-test';
-      let handleMessage = () => 'create-test';
+      let inboxURL = "create-test";
+      let handleMessage = () => "create-test";
       let poller = Poller.create(inboxURL, handleMessage);
       expect(poller).toBeInstanceOf(Poller);
       expect(poller.inboxURL).toBe(inboxURL);
@@ -131,35 +110,36 @@ describe('Poller', () => {
     });
 
     test(`.contructor inboxURL is required`, () => {
-      expect(() => new Poller).toThrow('inboxURL is required');
+      expect(() => new Poller()).toThrow("inboxURL is required");
     });
 
     test(`.contructor handleMessage is required`, () => {
-      expect(() => new Poller({inboxURL})).toThrow('handleMessage is required');
+      expect(() => new Poller({ inboxURL })).toThrow(
+        "handleMessage is required"
+      );
     });
-
   });
 
-  describe('._poll', () => {
+  describe("._poll", () => {
     let inboxResponseError, message, inboxResponse, inboxResponseEmpty;
 
     beforeEach(() => {
-      message = {id: 'messageid', type: 'message-type'};
+      message = { id: "messageid", type: "message-type" };
       inboxResponse = {
-        status:   200,
+        status: 200,
         messages: [message, message]
       };
       inboxResponseEmpty = {
-        status:   200,
+        status: 200,
         messages: []
       };
       inboxResponseError = {
-        statusText: 'Network Error',
-        error:      new Error('Network Error'),
-        value:      {
-          statusText: 'Network Error',
-          error:      {
-            message: 'Network Error'
+        statusText: "Network Error",
+        error: new Error("Network Error"),
+        result: {
+          statusText: "Network Error",
+          error: {
+            message: "Network Error"
           }
         }
       };
@@ -167,12 +147,12 @@ describe('Poller', () => {
       poller.on(INBOX_FETCH_FAILED, onInboxFetchFailed);
     });
 
-    test('.poll success resolves/emits inbox:fetch:completed', async () => {
+    test(".poll success resolves/emits inbox:fetch:completed", async () => {
       inbox.get = jest.fn().mockReturnValue(inboxResponse);
       let expected = {
-        type:  INBOX_FETCH_COMPLETED,
-        value: {
-          status:   200,
+        type: INBOX_FETCH_COMPLETED,
+        result: {
+          status: 200,
           messages: expect.any(Array)
         }
       };
@@ -181,13 +161,13 @@ describe('Poller', () => {
       expect.assertions(2);
     });
 
-    test('.poll errors resolves/emits inbox:fetch:failed', async () => {
+    test(".poll errors resolves/emits inbox:fetch:failed", async () => {
       let response = inboxResponseError;
       inbox.get = jest.fn().mockReturnValue(Promise.resolve(response));
       let expected = {
-        type:  INBOX_FETCH_FAILED,
+        type: INBOX_FETCH_FAILED,
         error: new Error(response.error.message),
-        value: response
+        result: response
       };
       let received = await poller._poll();
       expect(received).toMatchObject(expected);
@@ -196,12 +176,12 @@ describe('Poller', () => {
     });
 
     test(`.poll handles inbox.get rejects`, async () => {
-      let error = new Error('polling-error');
+      let error = new Error("polling-error");
       poller.inbox.get = jest.fn().mockReturnValue(Promise.reject(error));
       let expected = {
-        type:  INBOX_FETCH_FAILED,
+        type: INBOX_FETCH_FAILED,
         error: error,
-        value: 'polling-error'
+        result: "polling-error"
       };
       poller._poll().catch(received => {
         expect(received).toMatchObject(expected);
@@ -211,16 +191,16 @@ describe('Poller', () => {
     test(`.poll handles network errors`, async () => {
       inbox.get = sinon.stub().resolves(inboxResponseError);
       let expected = {
-        type:  INBOX_FETCH_FAILED,
+        type: INBOX_FETCH_FAILED,
         error: new Error(inboxResponseError.statusText),
-        value: inboxResponseError
+        result: inboxResponseError
       };
       let received = await poller._poll();
       expect(received).toMatchObject(expected);
     });
   });
 
-  describe('._processMessage', () => {
+  describe("._processMessage", () => {
     beforeEach(() => {
       poller.on(MESSAGE_PROCESS_COMPLETED, onMessageProcessCompleted);
       poller.on(MESSAGE_PROCESS_FAILED, onMessageProcessFailed);
@@ -228,13 +208,13 @@ describe('Poller', () => {
 
     afterEach(() => {
       poller.removeListener(
-          MESSAGE_PROCESS_COMPLETED,
-          onMessageProcessCompleted
+        MESSAGE_PROCESS_COMPLETED,
+        onMessageProcessCompleted
       );
       poller.removeListener(MESSAGE_PROCESS_FAILED, onMessageProcessFailed);
     });
 
-    test('._processMessage returns a promise', () => {
+    test("._processMessage returns a promise", () => {
       let response = poller._processMessage(message);
       expect(response).toBeInstanceOf(Promise);
     });
@@ -242,8 +222,9 @@ describe('Poller', () => {
     test(`._processMessage returns/emits message:process:completed`, async () => {
       let result = await poller.handleMessage(message);
       let expected = {
-        type:  MESSAGE_PROCESS_COMPLETED,
-        value: {message, result}
+        type: MESSAGE_PROCESS_COMPLETED,
+        object: message,
+        result: result
       };
       let response = await poller._processMessage(message);
       expect(response).toMatchObject(expected);
@@ -251,11 +232,11 @@ describe('Poller', () => {
     });
 
     test(`._processMessage returns/emits message:process:failed when handler rejects`, async () => {
-      poller.handleMessage = sinon.stub().rejects('error-message');
-      let expected = {
-        type:  MESSAGE_PROCESS_FAILED,
-        value: {message}
-      };
+      poller.handleMessage = sinon.stub().rejects("error-message");
+      let expected = expect.objectContaining({
+        type: MESSAGE_PROCESS_FAILED,
+        object: message
+      });
       let response = await poller._processMessage(message);
       expect(response).toMatchObject(expected);
     });
@@ -263,15 +244,15 @@ describe('Poller', () => {
     test(`._processMessage returns/emits message:process:failed when handler throws`, async () => {
       poller.handleMessage = sinon.stub().throws();
       let expected = {
-        type:  MESSAGE_PROCESS_FAILED,
-        value: {message}
+        type: MESSAGE_PROCESS_FAILED,
+        object: message
       };
       let response = await poller._processMessage(message);
       expect(response).toMatchObject(expected);
     });
   });
 
-  describe('._processResponse', () => {
+  describe("._processResponse", () => {
     let onResponseProcessCompleted, onResponseProcessFailed;
     beforeEach(() => {
       onResponseProcessCompleted = jest.fn();
@@ -284,15 +265,15 @@ describe('Poller', () => {
     afterEach(() => {
       poller.removeListener(INBOX_EMPTY, onInboxEmpty);
       poller.removeListener(
-          RESPONSE_PROCESS_COMPLETED,
-          onResponseProcessCompleted
+        RESPONSE_PROCESS_COMPLETED,
+        onResponseProcessCompleted
       );
       poller.removeListener(RESPONSE_PROCESS_FAILED, onResponseProcessFailed);
     });
 
     test(`._processResponse - anything not {type: inbox:fetch:completed} is passed through`, async () => {
       let input = {
-        foo: 'bar'
+        foo: "bar"
       };
       let output = await poller._processResponse(input);
       expect(output).toEqual(input);
@@ -302,12 +283,12 @@ describe('Poller', () => {
     });
     test(`._processResponse - fires inbox:empty when no messages are returned`, async () => {
       let emptyInboxResponse = {
-        type:  INBOX_FETCH_COMPLETED,
-        value: {
+        type: INBOX_FETCH_COMPLETED,
+        result: {
           messages: []
         }
       };
-      let expected = {type: INBOX_EMPTY};
+      let expected = { type: INBOX_EMPTY };
       let output = await poller._processResponse(emptyInboxResponse);
       expect(output).toMatchObject(expected);
       expect(onInboxEmpty).toHaveBeenCalled();
@@ -315,27 +296,27 @@ describe('Poller', () => {
     test(`._processResponse - throws response:process:failed on unexpected input`, async () => {
       await poller._processResponse(undefined).catch(error => {
         expect(error).toHaveProperty(
-            'message',
-            'processMessages received an unexpected response from inbox'
+          "message",
+          "processMessages received an unexpected response from inbox"
         );
         expect(onResponseProcessFailed).toHaveBeenCalled();
       });
       await poller
-          ._processResponse({
-            type:  INBOX_FETCH_COMPLETED,
-            value: {messages: 'oops'}
-          })
-          .catch(error => {
-            expect(error).toHaveProperty(
-                'message',
-                'an unexpected error occurred while processing messages'
-            );
-            expect(onResponseProcessFailed).toHaveBeenCalled();
-          });
+        ._processResponse({
+          type: INBOX_FETCH_COMPLETED,
+          result: { messages: "oops" }
+        })
+        .catch(error => {
+          expect(error).toHaveProperty(
+            "message",
+            "an unexpected error occurred while processing messages"
+          );
+          expect(onResponseProcessFailed).toHaveBeenCalled();
+        });
     });
   });
 
-  describe('.run', () => {
+  describe(".run", () => {
     beforeEach(() => {
       onServiceProcessFailed = jest.fn();
       onServiceProcessCompleted = jest.fn();
@@ -346,18 +327,18 @@ describe('Poller', () => {
 
     afterEach(() => {
       poller.removeListener(
-          SERVICE_PROCESS_COMPLETED,
-          onServiceProcessCompleted
+        SERVICE_PROCESS_COMPLETED,
+        onServiceProcessCompleted
       );
       poller.removeListener(SERVICE_PROCESS_FAILED, onServiceProcessFailed);
     });
 
-    test('.run(callback) - callback signature (error, result)', done => {
+    test(".run(callback) - callback signature (error, result)", done => {
       let expected = expect.objectContaining({
-        type:      SERVICE_PROCESS_COMPLETED,
+        type: SERVICE_PROCESS_COMPLETED,
         startTime: expect.any(Number),
-        endTime:   expect.any(Number),
-        result:    expect.objectContaining({
+        endTime: expect.any(Number),
+        result: expect.objectContaining({
           type: expect.any(String)
         })
       });
@@ -369,12 +350,12 @@ describe('Poller', () => {
       });
     });
 
-    test('.run() does not wait if messages were processed', done => {
-      let onWait = jest.fn().mockName('onWait');
-      poller.on('service:wait', onWait);
+    test(".run() does not wait if messages were processed", done => {
+      let onWait = jest.fn().mockName("onWait");
+      poller.on("service:wait", onWait);
       poller._processMessages = jest
-          .fn()
-          .mockReturnValue(Promise.resolve({type: RESPONSE_PROCESS_COMPLETED}));
+        .fn()
+        .mockReturnValue(Promise.resolve({ type: RESPONSE_PROCESS_COMPLETED }));
       poller.run((error, result) => {
         expect(onWait).not.toBeCalled();
         done();
@@ -382,10 +363,10 @@ describe('Poller', () => {
     });
 
     test(`.run() polling errors are passed to final result`, done => {
-      poller._poll = sinon.stub().resolves({type: INBOX_FETCH_FAILED});
+      poller._poll = sinon.stub().resolves({ type: INBOX_FETCH_FAILED });
       poller.run(function(error, event) {
         expect(error).toBeFalsy();
-        expect(event.result).toMatchObject({type: INBOX_FETCH_FAILED});
+        expect(event.result).toMatchObject({ type: INBOX_FETCH_FAILED });
         done();
       });
     });
@@ -400,21 +381,21 @@ describe('Poller', () => {
     });
   });
 
-  describe('.stop', () => {
+  describe(".stop", () => {
     beforeEach(() => {
       poller.stopped = false;
       poller.on(SERVICE_STOP, onServiceStop);
       poller.on(SERVICE_STOP_COMPLETED, onServiceStopCompleted);
     });
 
-    test('.stop stops the poller polling for messages', () => {
+    test(".stop stops the poller polling for messages", () => {
       poller.stop();
       expect(poller.stopped).toBeTruthy();
     });
 
     test(`.stop fires service:stop {error, value}`, () => {
       let expected = {
-        type:  SERVICE_STOP,
+        type: SERVICE_STOP,
         error: expect.any(Error)
       };
       poller.stop(new Error());
@@ -424,21 +405,21 @@ describe('Poller', () => {
     test(`.stop fires service:stop:completed on next itteration of .run`, done => {
       poller.stopped = true;
       poller.on(SERVICE_STOP_COMPLETED, event => {
-        expect(event).toMatchObject({type: SERVICE_STOP_COMPLETED});
+        expect(event).toMatchObject({ type: SERVICE_STOP_COMPLETED });
         done();
       });
       poller.run(poller._exit);
     });
   });
 
-  describe('.start', () => {
+  describe(".start", () => {
     beforeEach(() => {
       onServiceStart = jest.fn();
       poller.on(SERVICE_START, onServiceStart);
-      poller.inbox.get = jest.fn()
-          .mockReturnValueOnce(Promise.resolve({messages: [message, message]}))
-          .mockReturnValueOnce(Promise.resolve({messages: []}))
-
+      poller.inbox.get = jest
+        .fn()
+        .mockReturnValueOnce(Promise.resolve({ messages: [message, message] }))
+        .mockReturnValueOnce(Promise.resolve({ messages: [] }));
     });
 
     afterEach(() => {
@@ -448,7 +429,7 @@ describe('Poller', () => {
     test(`.start - toggles .stopped`, done => {
       expect.assertions(2);
       expect(poller.stopped).toBeTruthy();
-      poller.on('service:start', () => {
+      poller.on("service:start", () => {
         expect(poller.stopped).toBeFalsy();
         done();
       });
@@ -457,7 +438,7 @@ describe('Poller', () => {
 
     test(`.start - fires service:start`, done => {
       let serviceStartMatcher = {
-        type:      SERVICE_START,
+        type: SERVICE_START,
         startTime: expect.any(Number)
       };
       poller.on(SERVICE_START, e => {
