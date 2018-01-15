@@ -4,11 +4,11 @@ const assert = require('assert');
 const defaultLogger = require('debug')('yodata');
 
 const _logger = {
-  inbox:    require('debug')('yodata:inbox'),
-  serivce:  require('debug')('yodata:service'),
-  message:  require('debug')('yodata:message'),
-  response: require('debug')('yodata:response'),
-  error:    require('debug')('yodata:error')
+  inbox:    require('debug')('yd:inbox'),
+  service:  require('debug')('yd:service'),
+  message:  require('debug')('yd:message'),
+  response: require('debug')('yd:response'),
+  error:    require('debug')('yd:error')
 };
 
 const debug = event => {
