@@ -1,6 +1,6 @@
 {
   "name": "yodata-inbox-poller",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Simple poller for processing messages from a linked-data inbox container",
   "main": "app.js",
   "scripts": {
