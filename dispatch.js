@@ -1,26 +1,14 @@
 const EventEmitter = require('events').EventEmitter;
 const assert = require('assert');
-
-const defaultLogger = require('debug')('yodata');
-
-const _logger = {
-  inbox:    require('debug')('yd:inbox'),
-  service:  require('debug')('yd:service'),
-  message:  require('debug')('yd:message'),
-  response: require('debug')('yd:response'),
-  error:    require('debug')('yd:error')
-};
+const _debug = require('debug');
+const appName = 'yd';
 
 const debug = event => {
-  let {type} = event;
-  if (type) {
-    let logName = type.substring(0, type.indexOf(':'));
-    let sendToLog = _logger[logName] || defaultLogger;
-    sendToLog(event);
+  if (event && event.type) {
+    _debug(`${appName}:${event.type}`)(event);
   }
   return event;
 };
-
 
 class Dispatch extends EventEmitter {
   constructor() {
