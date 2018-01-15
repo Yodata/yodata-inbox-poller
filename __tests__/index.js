@@ -175,7 +175,6 @@ describe('Poller', () => {
         value: 'polling-error'
       };
       poller._poll().catch(received => {
-        console.log(received);
         expect(received).toMatchObject(expected);
       });
     });
@@ -294,7 +293,6 @@ describe('Poller', () => {
   });
 
   describe('.run', () => {
-
     beforeEach(() => {
       onServiceProcessFailed = jest.fn();
       onServiceProcessCompleted = jest.fn();
@@ -326,21 +324,14 @@ describe('Poller', () => {
       });
     });
 
-    test('.run() waits after sucessfull process', done => {
-      let last;
-      let expectedInterval = waitTimeSeconds * 1000;
-      poller.on(SERVICE_PROCESS_START, event => {
-        console.log(event);
-        if (last) {
-          let current = Date.now();
-          let interval = current - last;
-          expect(interval).toBeGreaterThan(expectedInterval);
-          done();
-        }
-        last = Date.now();
+    test('.run() does not wait if messages were processed', done => {
+      let onWait = jest.fn().mockName('onWait');
+      poller.on('service:wait', onWait);
+      poller._processMessages = jest.fn().mockReturnValue(Promise.resolve({type: RESPONSE_PROCESS_COMPLETED}));
+      poller.run((error, result) => {
+        console.log({onWait,error,result})
+        done();
       });
-      poller.stopped = true;
-      poller.start();
     });
 
     test(`.run() polling errors are passed to final result`, done => {
@@ -396,7 +387,7 @@ describe('Poller', () => {
 
   });
 
-  describe('.start', function() {
+  describe('.start', () => {
 
     beforeEach(() => {
       onServiceStart = jest.fn();
@@ -407,10 +398,13 @@ describe('Poller', () => {
       poller.removeAllListeners();
     });
 
-    test(`.start - toggles .stopped`, () => {
+    test(`.start - toggles .stopped`, done => {
       expect(poller.stopped).toBeTruthy();
+      poller.on('service:start', ()=>{
+        expect(poller.stopped).toBeFalsy();
+        done();
+      });
       poller.start();
-      expect(poller.stopped).toBeFalsy();
     });
 
     test(`.start - fires service:start`, done => {

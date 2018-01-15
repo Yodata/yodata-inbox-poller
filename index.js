@@ -75,12 +75,16 @@ class Poller extends EventEmitter {
       dispatch.event(event);
       this._poll()
           .then(this._processResponse)
-          .then(response => {
+          .then(lastEvent => {
             event.type = SERVICE_PROCESS_COMPLETED;
             event.endTime = Date.now();
-            event.result = response;
+            event.result = lastEvent;
             dispatch.event(event);
-            this._wait(next, event);
+            if (lastEvent && lastEvent.type === SERVICE_PROCESS_COMPLETED) {
+              next(null, event);
+            } else {
+              this._wait(next, event);
+            }
           })
           .catch(error => {
             event.type = SERVICE_PROCESS_FAILED;
