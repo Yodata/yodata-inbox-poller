@@ -19,15 +19,14 @@ const EventEmitter = require('events').EventEmitter;
 const Inbox = require('./inbox');
 const forever = require('async/forever');
 const auto = require('auto-bind');
-const debug = require('debug')('poller');
 const assert = require('assert');
 const dispatch = require('./dispatch');
 
 class Poller extends EventEmitter {
   constructor(options = {}) {
     super();
-    assert.ok(options.inboxURL, 'inboxURL is required.');
-    assert.ok(options.handleMessage, 'handleMessage is required.');
+    assert.ok(options.inboxURL, 'inboxURL is required');
+    assert.ok(options.handleMessage, 'handleMessage is required');
     this.inboxURL = options.inboxURL;
     this.handleMessage = options.handleMessage;
     this.waitTimeSeconds = options.waitTimeSeconds || 5;
@@ -44,17 +43,14 @@ class Poller extends EventEmitter {
   stop(error, value) {
     if (!this.stopped) {
       this.stopped = true;
-      let event = {
+      dispatch.event({
         type:      SERVICE_STOP,
-        startTime: Date.now()
-      };
-      if (error)
-        event.error = error;
-      if (value) {
-        event.value = value;
-      }
-      return dispatch.event(event);
+        startTime: Date.now(),
+        error,
+        value
+      });
     }
+    return this;
   }
 
   start() {
@@ -63,45 +59,47 @@ class Poller extends EventEmitter {
       dispatch.event({type: SERVICE_START, startTime: Date.now()});
       forever(this.run, this._exit);
     }
+    return this;
   }
 
   run(next) {
     if (this.stopped) {
       next(new Error(SERVICE_STOP));
     } else {
-      let event = {};
-      event.type = SERVICE_PROCESS_START;
-      event.startTime = Date.now();
-      dispatch.event(event);
+      let startEvent = dispatch.event({
+        type:      SERVICE_PROCESS_START,
+        startTime: Date.now()
+      });
       this._poll()
           .then(this._processResponse)
-          .then(lastEvent => {
-            event.type = SERVICE_PROCESS_COMPLETED;
-            event.endTime = Date.now();
-            event.result = lastEvent;
-            dispatch.event(event);
-            if (lastEvent && lastEvent.type === SERVICE_PROCESS_COMPLETED) {
-              next(null, event);
+          .then(result => {
+            let nextEvent = dispatch.event({
+                ...startEvent,
+              type:      SERVICE_PROCESS_COMPLETED,
+              endTime:   Date.now(),
+              result:    result
+            });
+            if (result && result.type === RESPONSE_PROCESS_COMPLETED) {
+              next(null, nextEvent);
             } else {
-              this._wait(next, event);
+              this._wait(next, nextEvent);
             }
           })
           .catch(error => {
-            event.type = SERVICE_PROCESS_FAILED;
-            event.endTime = Date.now();
-            event.error = error;
-            dispatch.event(event);
-            this.stop(error, event);
-            next(error, event);
+            let errorEvent = dispatch.event({
+              type:    SERVICE_PROCESS_FAILED,
+              endTime: Date.now(),
+              error:   error
+            });
+            this.stop(error, errorEvent);
+            next(error, errorEvent);
           });
     }
   }
 
   _handleDispatch(event) {
     if (event && event.type) {
-      debug(event);
       this.emit(event.type, event);
-      return event;
     }
   }
 
@@ -165,13 +163,14 @@ class Poller extends EventEmitter {
     }
   }
 
-  _wait(cb, value) {
+  _wait(callback, data) {
     let waitTime = this.waitTimeSeconds * 1000;
     dispatch.send('service:wait', {waitTime});
-    setTimeout(() => cb(null, value), waitTime);
+    setTimeout(() => callback(null, data), waitTime);
   }
 
   _exit(error, value) {
+    console.log('EXIT CALLED');
     dispatch.send(SERVICE_STOP_COMPLETED, value, error);
   }
 }

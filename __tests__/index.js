@@ -43,7 +43,6 @@ const inbox = jest.genMockFromModule('../inbox');
 // };
 
 describe('Poller', () => {
-
   let poller,
       handleMessage,
       inboxURL,
@@ -65,7 +64,6 @@ describe('Poller', () => {
       inboxResponse;
 
   beforeEach(() => {
-
     message = {id: 'messageid', type: 'message-type'};
     inboxResponse = {
       status:   200,
@@ -73,7 +71,9 @@ describe('Poller', () => {
     };
     inbox.get = sinon.stub().resolves(inboxResponse);
     handleMessageResponse = 'handle-message-response';
-    handleMessage = jest.fn().mockReturnValue(Promise.resolve(handleMessageResponse));
+    handleMessage = jest
+        .fn()
+        .mockReturnValue(Promise.resolve(handleMessageResponse));
 
     onServiceStart = jest.fn().mockName(SERVICE_START);
     onInboxFetchCompleted = jest.fn().mockName(INBOX_FETCH_COMPLETED);
@@ -96,11 +96,31 @@ describe('Poller', () => {
   });
 
   afterEach(() => {
-    poller.removeAllListeners()
+    poller.removeAllListeners();
+  });
+
+  describe('._handleDispatch', ()=>{
+    let handler, event;
+
+    beforeEach(()=>{
+      handler = jest.fn();
+      poller.on('foo', handler);
+    });
+
+    test(`._handleDispatch(event) emits(event.type, event)`, () => {
+      event = {type: 'foo'};
+      poller._handleDispatch(event);
+      expect(handler).toHaveBeenCalledWith(event);
+    });
+
+    test(`._handleDispatch(event) no event.type does not emit`, () => {
+      event = 'nofoo';
+      poller._handleDispatch(event);
+      expect(handler).not.toHaveBeenCalled();
+    });
   });
 
   describe('.create', () => {
-
     test(`.create(inboxURL, handleMessage)`, () => {
       let inboxURL = 'create-test';
       let handleMessage = () => 'create-test';
@@ -109,6 +129,15 @@ describe('Poller', () => {
       expect(poller.inboxURL).toBe(inboxURL);
       expect(poller.handleMessage).toEqual(handleMessage);
     });
+
+    test(`.contructor inboxURL is required`, () => {
+      expect(() => new Poller).toThrow('inboxURL is required');
+    });
+
+    test(`.contructor handleMessage is required`, () => {
+      expect(() => new Poller({inboxURL})).toThrow('handleMessage is required');
+    });
+
   });
 
   describe('._poll', () => {
@@ -198,7 +227,10 @@ describe('Poller', () => {
     });
 
     afterEach(() => {
-      poller.removeListener(MESSAGE_PROCESS_COMPLETED, onMessageProcessCompleted);
+      poller.removeListener(
+          MESSAGE_PROCESS_COMPLETED,
+          onMessageProcessCompleted
+      );
       poller.removeListener(MESSAGE_PROCESS_FAILED, onMessageProcessFailed);
     });
 
@@ -237,7 +269,6 @@ describe('Poller', () => {
       let response = await poller._processMessage(message);
       expect(response).toMatchObject(expected);
     });
-
   });
 
   describe('._processResponse', () => {
@@ -252,7 +283,10 @@ describe('Poller', () => {
     });
     afterEach(() => {
       poller.removeListener(INBOX_EMPTY, onInboxEmpty);
-      poller.removeListener(RESPONSE_PROCESS_COMPLETED, onResponseProcessCompleted);
+      poller.removeListener(
+          RESPONSE_PROCESS_COMPLETED,
+          onResponseProcessCompleted
+      );
       poller.removeListener(RESPONSE_PROCESS_FAILED, onResponseProcessFailed);
     });
 
@@ -279,16 +313,25 @@ describe('Poller', () => {
       expect(onInboxEmpty).toHaveBeenCalled();
     });
     test(`._processResponse - throws response:process:failed on unexpected input`, async () => {
-      await poller._processResponse(undefined)
+      await poller._processResponse(undefined).catch(error => {
+        expect(error).toHaveProperty(
+            'message',
+            'processMessages received an unexpected response from inbox'
+        );
+        expect(onResponseProcessFailed).toHaveBeenCalled();
+      });
+      await poller
+          ._processResponse({
+            type:  INBOX_FETCH_COMPLETED,
+            value: {messages: 'oops'}
+          })
           .catch(error => {
-            expect(error).toHaveProperty('message', 'processMessages received an unexpected response from inbox');
+            expect(error).toHaveProperty(
+                'message',
+                'an unexpected error occurred while processing messages'
+            );
             expect(onResponseProcessFailed).toHaveBeenCalled();
           });
-      await poller._processResponse({type: INBOX_FETCH_COMPLETED, value: {messages: 'oops'}})
-          .catch(error => {
-            expect(error).toHaveProperty('message', 'an unexpected error occurred while processing messages');
-            expect(onResponseProcessFailed).toHaveBeenCalled();
-          })
     });
   });
 
@@ -302,24 +345,26 @@ describe('Poller', () => {
     });
 
     afterEach(() => {
-      poller.removeListener(SERVICE_PROCESS_COMPLETED, onServiceProcessCompleted);
+      poller.removeListener(
+          SERVICE_PROCESS_COMPLETED,
+          onServiceProcessCompleted
+      );
       poller.removeListener(SERVICE_PROCESS_FAILED, onServiceProcessFailed);
     });
 
     test('.run(callback) - callback signature (error, result)', done => {
+      let expected = expect.objectContaining({
+        type:      SERVICE_PROCESS_COMPLETED,
+        startTime: expect.any(Number),
+        endTime:   expect.any(Number),
+        result:    expect.objectContaining({
+          type: expect.any(String)
+        })
+      });
       poller.run(function(error, result) {
+        console.log(result);
         expect(error).toBeFalsy();
-        expect(result).toMatchObject({
-          type:      SERVICE_PROCESS_COMPLETED,
-          startTime: expect.any(Number),
-          endTime:   expect.any(Number),
-          result:    {
-            type:  RESPONSE_PROCESS_COMPLETED,
-            value: {
-              messagesProcessed: expect.any(Number)
-            }
-          }
-        });
+        expect(result).toMatchObject(expected);
         done();
       });
     });
@@ -327,9 +372,11 @@ describe('Poller', () => {
     test('.run() does not wait if messages were processed', done => {
       let onWait = jest.fn().mockName('onWait');
       poller.on('service:wait', onWait);
-      poller._processMessages = jest.fn().mockReturnValue(Promise.resolve({type: RESPONSE_PROCESS_COMPLETED}));
+      poller._processMessages = jest
+          .fn()
+          .mockReturnValue(Promise.resolve({type: RESPONSE_PROCESS_COMPLETED}));
       poller.run((error, result) => {
-        console.log({onWait,error,result})
+        expect(onWait).not.toBeCalled();
         done();
       });
     });
@@ -351,11 +398,9 @@ describe('Poller', () => {
         done();
       });
     });
-
   });
 
   describe('.stop', () => {
-
     beforeEach(() => {
       poller.stopped = false;
       poller.on(SERVICE_STOP, onServiceStop);
@@ -384,14 +429,16 @@ describe('Poller', () => {
       });
       poller.run(poller._exit);
     });
-
   });
 
   describe('.start', () => {
-
     beforeEach(() => {
       onServiceStart = jest.fn();
       poller.on(SERVICE_START, onServiceStart);
+      poller.inbox.get = jest.fn()
+          .mockReturnValueOnce(Promise.resolve({messages: [message, message]}))
+          .mockReturnValueOnce(Promise.resolve({messages: []}))
+
     });
 
     afterEach(() => {
@@ -399,8 +446,9 @@ describe('Poller', () => {
     });
 
     test(`.start - toggles .stopped`, done => {
+      expect.assertions(2);
       expect(poller.stopped).toBeTruthy();
-      poller.on('service:start', ()=>{
+      poller.on('service:start', () => {
         expect(poller.stopped).toBeFalsy();
         done();
       });
@@ -408,13 +456,16 @@ describe('Poller', () => {
     });
 
     test(`.start - fires service:start`, done => {
-      let serviceStartMatcher = {type: SERVICE_START, startTime: expect.any(Number)};
+      let serviceStartMatcher = {
+        type:      SERVICE_START,
+        startTime: expect.any(Number)
+      };
       poller.on(SERVICE_START, e => {
         expect(e).toMatchObject(serviceStartMatcher);
         done();
       });
       poller.start();
-
+      poller.stop();
     });
 
     test(`.start - does not create additional workers if start is called more than once.`, () => {

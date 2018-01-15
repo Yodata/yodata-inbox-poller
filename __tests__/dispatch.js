@@ -65,7 +65,7 @@ describe('dispatch', () => {
       error = new Error('error-message');
       value = 'something:failed';
       expected = expect.objectContaining({
-        type: expect.any(String),
+        type:  expect.any(String),
         error: expect.any(Error)
       })
     });
@@ -82,7 +82,7 @@ describe('dispatch', () => {
 
     test(`.error optional value property`, () => {
       expected = expect.objectContaining({type, value});
-      expect(dispatch.error(type,undefined,value)).toMatchObject(expected);
+      expect(dispatch.error(type, undefined, value)).toMatchObject(expected);
     });
   });
 
@@ -90,7 +90,7 @@ describe('dispatch', () => {
 
     test(`.event required arguments`, () => {
       expect(() => dispatch.event()).toThrow('event is required');
-      expect(()=>dispatch.event({})).toThrow('event.type is required');
+      expect(() => dispatch.event({})).toThrow('event.type is required');
     });
 
     test(`.event(string) - dispatches/returns {type: string}`, () => {
@@ -98,7 +98,7 @@ describe('dispatch', () => {
       return expect(onDispatch).toHaveBeenCalledWith({type});
     });
 
-    test(`dispatches event.type`, done =>  {
+    test(`dispatches event.type`, done => {
       let event = {type: 'foo'};
       dispatch.on('dispatch', value => {
         expect(value).toMatchObject(event);
@@ -107,6 +107,21 @@ describe('dispatch', () => {
       dispatch.event(event);
     });
 
+  });
+
+  describe('._dispatch', () => {
+    test(`._dispatch(event) returns event`, () => {
+      expect(dispatch._dispatch(event)).toEqual(event);
+      expect(dispatch._dispatch({value: 'val'})).toMatchObject({value: 'val'});
+    });
+  })
+
+  describe('._debug', ()=>{
+    test(`._debug(event) returns event`, () => {
+      let notype = {value: 'val'};
+      expect(dispatch._debug(event)).toEqual(event);
+      expect(dispatch._debug(notype)).toEqual(notype);
+    });
   })
 
 });

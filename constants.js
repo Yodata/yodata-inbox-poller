@@ -1,5 +1,3 @@
-module.exports.SERVICE_PROCESS = 'service:process';
-module.exports.MESSAGE_PROCESS = 'message:process';
 module.exports.INBOX_FETCH = 'inbox:fetch';
 module.exports.SERVICE_START = 'service:start';
 module.exports.SERVICE_STOP = 'service:stop';
