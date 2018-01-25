@@ -2,7 +2,7 @@ const Inbox = require('../inbox');
 
 const inboxURL = 'some-url';
 const message1 = {
-  id:         '1',
+  id:         'a',
   type:       'Notification',
   instrument: 'message-instrument',
   target:     'message-target',
@@ -11,7 +11,7 @@ const message1 = {
   }
 };
 const message2 = {
-  id:         '2',
+  id:         'b',
   type:       'Notification',
   instrument: 'message-instrument',
   target:     'message-target',

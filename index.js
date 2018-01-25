@@ -106,7 +106,7 @@ class Poller extends EventEmitter {
 
   /**
    * Processes all messages found in response.value.messages
-   * @param lastEvent
+   * @param inboxFetchResponse
    * @returns {Promise<*>}
    * @private
    * @event Poller#inbox:fetch:completed
@@ -114,21 +114,21 @@ class Poller extends EventEmitter {
    * @event Poller
    *
    */
-  async _processResponse(lastEvent) {
+  async _processResponse(inboxFetchResponse) {
     try {
-      let response = lastEvent.result;
+      let response = inboxFetchResponse.result;
       let messages = response.messages;
       let hasMessages = Array.isArray(messages) && messages.length > 0;
       let result = hasMessages && await Promise.all(messages.map(this._processMessage));
       return this.dispatch({
         type:   hasMessages ? RESPONSE_PROCESS_COMPLETED : INBOX_EMPTY,
-        object: lastEvent.result,
+        object: inboxFetchResponse.result,
         result
       })
     } catch (error) {
       throw this.dispatch({
         type:   RESPONSE_PROCESS_FAILED,
-        object: lastEvent.result,
+        object: inboxFetchResponse.result,
         error:  error.message,
         result: {
           error: error

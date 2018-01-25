@@ -18,15 +18,12 @@ const {
   RESPONSE_PROCESS_FAILED
 } = require('../constants');
 
-const Poller = require('..');
-const inbox = jest.genMockFromModule('../inbox');
+const Service = require('..');
 
 describe('Poller', () => {
   let service,
       handleMessage,
       inboxURL,
-      waitTimeSeconds,
-      pollerConfig,
       handleMessageResponse,
       inboxFetchResponseEmpty,
       message,
@@ -39,8 +36,24 @@ describe('Poller', () => {
       inboxFetchErrorResponse;
 
   beforeEach(() => {
-    messagea = {id: 'messagea', type: 'message'};
-    messageb = {id: 'messageb', type: 'message'};
+    messagea = {
+      id:         'a',
+      type:       'Notification',
+      instrument: 'message-instrument',
+      target:     'message-target',
+      object:     {
+        type: 'action-type'
+      }
+    };
+    messageb = {
+      id:         'b',
+      type:       'Notification',
+      instrument: 'message-instrument',
+      target:     'message-target',
+      object:     {
+        type: 'action-type'
+      }
+    };
     pollResponse = {
       type:   INBOX_FETCH_COMPLETED,
       object: expect.any(String),
@@ -81,21 +94,16 @@ describe('Poller', () => {
     processResponseResponse = {
       type: RESPONSE_PROCESS_COMPLETED
     };
-    processMessageResponse = {
-      type: MESSAGE_PROCESS_COMPLETED
-    };
-    handleMessageResponse = 'handle-message-response';
-    handleMessage = jest.fn().mockReturnValue(Promise.resolve(handleMessageResponse));
+    handleMessageResponse = {type: MESSAGE_PROCESS_COMPLETED, result: messagea};
+    handleMessage = jest.fn(message);
     inboxURL = 'some-url';
-    waitTimeSeconds = 1;
-    pollerConfig = {
-      inboxURL,
-      inbox,
-      handleMessage,
-      waitTimeSeconds
-    };
-    service = new Poller(pollerConfig);
-    service.emit = jest.fn();
+    service = new Service({
+      inboxURL:        inboxURL,
+      handleMessage:   handleMessage,
+      waitTimeSeconds: 1,
+    });
+    service.inbox.get = jest.fn().mockReturnValue(Promise.resolve(inboxFetchResponse));
+    service.emit = jest.fn().mockName('service.emit');
   });
 
   describe('.create', () => {
@@ -103,18 +111,18 @@ describe('Poller', () => {
     test(`.create(inboxURL, handleMessage)`, () => {
       let inboxURL = 'create-test';
       let handleMessage = () => 'create-test';
-      let poller = Poller.create(inboxURL, handleMessage);
-      expect(poller).toBeInstanceOf(Poller);
+      let poller = Service.create(inboxURL, handleMessage);
+      expect(poller).toBeInstanceOf(Service);
       expect(poller.inboxURL).toBe(inboxURL);
       expect(poller.handleMessage).toEqual(handleMessage);
     });
 
     test(`.contructor inboxURL is required`, () => {
-      expect(() => new Poller()).toThrow('inboxURL is required');
+      expect(() => new Service()).toThrow('inboxURL is required');
     });
 
     test(`.contructor handleMessage is required`, () => {
-      expect(() => new Poller({inboxURL})).toThrow(
+      expect(() => new Service({inboxURL})).toThrow(
           'handleMessage is required'
       );
     });
@@ -124,7 +132,6 @@ describe('Poller', () => {
     let event;
 
     beforeEach(() => {
-      service.emit = jest.fn();
       event = {type: 'event-type'}
     });
 
@@ -162,9 +169,15 @@ describe('Poller', () => {
 
     test(`resolves to 'response:process:completed' on completion`, () => {
       return expect(service._processResponse(inboxFetchResponse)).resolves.toMatchObject({
-        type:   RESPONSE_PROCESS_COMPLETED,
+        type: RESPONSE_PROCESS_COMPLETED,
         object: inboxFetchResponse.result,
-        result: expect.any(Array)
+        result: expect.arrayContaining([
+          {
+            type: MESSAGE_PROCESS_COMPLETED,
+            object: messagea,
+            result: service.handleMessage(messagea)
+          }
+        ])
       })
     });
 
@@ -181,8 +194,7 @@ describe('Poller', () => {
     test(`._processMessage resolves to message:process:completed`, async () => {
       return expect(service._processMessage(message)).resolves.toMatchObject({
         type:   MESSAGE_PROCESS_COMPLETED,
-        object: message,
-        result: 'handle-message-response'
+        object: message
       });
     });
 
@@ -207,6 +219,24 @@ describe('Poller', () => {
 
     beforeEach(() => {
       service.stopped = false;
+    });
+
+    test(`.run() success callsback with (null, response:process:completed)`, done => {
+      service.run(function(error, result) {
+        expect(error).toBeNull();
+        expect(result).toMatchObject({
+          type:   RESPONSE_PROCESS_COMPLETED,
+          object: inboxFetchResponse.result,
+          result: expect.arrayContaining([
+            {
+              type: MESSAGE_PROCESS_COMPLETED,
+              object: messagea,
+              result: service.handleMessage(messagea)
+            }
+          ])
+        });
+        done();
+      })
     });
 
     test(`calls back with (error, result)`, done => {
@@ -246,18 +276,9 @@ describe('Poller', () => {
       });
     });
 
-    test(`.run() stops when processResponse throws an error`, () => {
-      service._processResponse = sinon.stub().throws();
-      service.run(function(error) {
-        expect(error).toBeTruthy();
-        expect(service.stopped).toBeTruthy();
-        done();
-      });
-    });
-
     test(`exits with SERVICE_PROCESS_FAILED if service.stopped`, done => {
       service.stopped = true;
-      service.run(function(error){
+      service.run(function(error) {
         expect(error.type).toMatch(SERVICE_PROCESS_FAILED);
         done();
       })
@@ -317,16 +338,16 @@ describe('Poller', () => {
   });
 
   describe('.wait()', () => {
-    test(`does not wait if event.type is INBOX_EMPTY`, () => {
+    test(`does not wait if event.type is response:process:completed`, () => {
       service.dispatch = jest.fn(event => event);
       let callback = jest.fn();
-      let event = {type: INBOX_EMPTY};
+      let event = {type: RESPONSE_PROCESS_COMPLETED};
       service.wait(callback)(event);
       return expect(service.dispatch).not.toHaveBeenCalled();
     });
   });
-  
-  describe('.exit(error, result)', ()=>{
+
+  describe('.exit(error, result)', () => {
     test(`dispatches 'service:stop:completed' {error, result}`, () => {
       service.dispatch = jest.fn(event => event);
       let event = {type: 'event-type'};
