@@ -1,14 +1,8 @@
 const expect = require('expect');
 const Inbox = require('../inbox');
-const axios = require('axios');
 
 describe('Inbox', () => {
-  const httpBin = axios.create({baseURL: 'http://httpbin.org'});
-  httpBin.getStatus = function(code) {
-    return this.get(`/status/${code}`);
-  };
-
-  let inbox, getOutput, _inbox;
+  let inbox;
   let inboxURL = 'some-url';
   const message1 = {
     id:         '1',
@@ -28,124 +22,81 @@ describe('Inbox', () => {
       type: 'action-type'
     }
   };
-  const axiosGetOutput = {
+  const axiosGetResponse = {
     status:     200,
     statusText: 'OK',
     request:    {
-      url: 'some-url'
+      url: inboxURL
     },
     response:   {
       headers: {}
     },
     data:       {
-      id:       'some-url',
+      id:       inboxURL,
       contains: [message1, message2]
     }
   };
+
   beforeEach(() => {
-    _inbox = jest.genMockFromModule('../inbox');
-    _inbox.get = jest.fn().mockReturnValue(Promise.resolve(axiosGetOutput));
-    inbox = new Inbox({inboxURL, inbox: _inbox});
-    getOutput = {
-      status:   200,
-      messages: [message1, message2]
-    };
+    inboxURL = 'some-url';
+    inbox = new Inbox({inboxURL});
   });
 
-  describe('.get', () => {
+  describe('.get(url)', () => {
 
-    beforeEach(() => {
-      inboxURL = 'http://httpbin.org';
-      inbox = new Inbox({inboxURL})
-    });
-
-    test(`.get default response`, async () => {
-      inbox._inbox.get = jest.fn().mockReturnValue(Promise.resolve(axiosGetOutput));
-      let expected = expect.objectContaining({
-        status:     expect.any(Number),
-        statusText: expect.any(String),
-        messages:   expect.any(Array)
-      });
-      return expect(await inbox.get()).toMatchObject(expected);
-    });
-
-    test(`.get(url) override the target URL`, async () => {
-      let response = await inbox.get('http://httpbin.org/status/200');
-      expect(response).toMatchObject({
-        status:     200,
-        statusText: 'OK',
-        error:      expect.any(Error)
+    test(`inbox.get default response`, async () => {
+      inbox._inbox.get = jest.fn().mockReturnValue(Promise.resolve(axiosGetResponse));
+      return expect(inbox.get()).resolves.toMatchObject({
+        type:   'inbox:fetch:completed',
+        object: inboxURL,
+        result: {
+          status:   200,
+          messages: expect.any(Array)
+        }
       })
     });
 
-    test(`.get(path) gets the page relative to the inboxURL `, async () => {
-      expect(inbox.inboxURL).toEqual('http://httpbin.org');
-      let response = await inbox.get('/status/418');
-      expect(response).toMatchObject({
-        status:     418,
-        statusText: "I'M A TEAPOT",
-        error:      expect.any(Error)
+    test(`inbox.get(URL) overrides the inbox.inboxURL`, async () => {
+      let url = 'http://httpbin.org/status/200';
+      return expect(inbox.get(url)).rejects.toMatchObject({
+        type:   'inbox:fetch:failed',
+        object: url,
+        error:  'inbox.response.contains (array) is required',
+        result: {
+          status: 200
+        }
       })
     });
 
-    test('.get timeout', async () => {
-      let output = await inbox.get('/status/408');
-      expect(output).toMatchObject({
-        status:     408,
-        statusText: 'REQUEST TIMEOUT',
-        error:      expect.any(Error),
+    test('inbox.get rejects on timeout', async () => {
+      return expect(inbox.get('/status/408')).rejects.toMatchObject({
+        type: 'inbox:fetch:failed'
       });
     });
 
-    test('Handles 403 (Forbidden)', async () => {
-      inbox._inbox.get = () => httpBin.getStatus(403);
-      let output = await inbox.get();
-      expect(output).toMatchObject({
-        status:     403,
-        statusText: 'FORBIDDEN',
-        error:      expect.any(Error)
+    test('inbox.get rejects on auth errors', async () => {
+      inboxURL = 'http://httpbin.org/status/403';
+      return expect(inbox.get(inboxURL)).rejects.toMatchObject({
+        type:   'inbox:fetch:failed',
+        object: inboxURL,
+        result: {
+          status:     403,
+          statusText: 'FORBIDDEN'
+        },
       });
     });
 
-    test('Handles 401 (Unauthorized)', async () => {
-      inbox._inbox.get = () => httpBin.getStatus(401);
-      let output = await inbox.get();
-      expect(output).toMatchObject({
-        status:     401,
-        statusText: 'UNAUTHORIZED',
-        error:      expect.any(Error)
-      });
-    });
-
-    test(`.get handles unexpected errors`, async () => {
-      let inbox = new Inbox({inboxURL: 'http://watch.me.fail'});
-      let output = await inbox.get();
-      expect(output).toMatchObject({
-        statusText: 'Network Error',
-        error:      expect.any(Error)
+    test(`inbox.get rejects on unrecognized response format`, async () => {
+      let inboxURL = 'http://httpbin.org/status/200';
+      return expect(inbox.get(inboxURL)).rejects.toMatchObject({
+        type:   'inbox:fetch:failed',
+        object: inboxURL,
+        error:  'inbox.response.contains (array) is required',
+        result: {
+          status:     200,
+          statusText: 'OK'
+        }
       })
-    });
-
-    test(`.get response with no data returns an error`, async () => {
-      _inbox.get = jest.fn().mockReturnValue(Promise.resolve({status: 200, statusText: 'OK'}));
-      let expected = expect.objectContaining({
-        status:     200,
-        statusText: 'OK',
-        error:      expect.any(Error)
-      });
-      let received = await inbox.get();
-      return expect(received).toMatchObject(expected)
-    });
-
-    test(`.get response with no messages returns an error`, async () => {
-      _inbox.get = jest.fn().mockReturnValue(Promise.resolve({status: 200, statusText: 'OK', data: {}}));
-      let expected = expect.objectContaining({
-        status:     200,
-        statusText: 'OK',
-        error:      expect.any(Error)
-      });
-      let received = await inbox.get();
-      return expect(received).toMatchObject(expected)
     });
   });
 });

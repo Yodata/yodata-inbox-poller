@@ -1,3 +1,4 @@
+const assert = require('assert-plus');
 const axios = require('axios');
 const defaultHeaders = {'x-api-key': process.env.YODATA_API_KEY};
 
@@ -13,23 +14,32 @@ class Inbox {
   }
 
   async get(url) {
+    let response;
     try {
-      let {status, statusText, data} = await this._inbox.get(url);
-      let messages = data && data.contains;
-      if (messages) {
-        return {status, statusText, messages}
-      } else {
-        return {status, statusText, error: new Error(`inbox response did not include data.contains`)}
-      }
+      response = await this._inbox.get(url);
+      assert.ok(response.status < 400, 'inbox.response.status');
+      assert.array(response.data.contains, 'inbox.response.contains');
+      return {
+        type:   'inbox:fetch:completed',
+        object: url || this.inboxURL,
+        result: {
+          status:     response.status,
+          statusText: response.statusText,
+          messages:   response.data.contains
+        }
+      };
     }
     catch (error) {
-      if (error.response) {
-        let {status, statusText} = error.response;
-        return {status, statusText, error}
-      }
-      else {
-        return {error, statusText: error.message}
-      }
+      response = error.response || response;
+      throw {
+        type:   'inbox:fetch:failed',
+        object: url || this.inboxURL,
+        error:  error.message,
+        result: {
+          status:     response && response.status,
+          statusText: response && response.statusText,
+        }
+      };
     }
   }
 }
