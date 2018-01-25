@@ -140,7 +140,7 @@ class Poller extends EventEmitter {
   wait(callback) {
     let service = this;
     return event => {
-      if (event.type === INBOX_EMPTY)
+      if (event.type === RESPONSE_PROCESS_COMPLETED)
         callback(null, event);
       else {
         let waitTime = service.waitTimeSeconds * 1000;
