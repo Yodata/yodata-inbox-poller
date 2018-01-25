@@ -11,42 +11,33 @@ npm install yodata-inbox-poller --save
 ## Usage
 
 ```js
-const Poller = require("yodata-inbox-poller");
+const Service = require('yodata-inbox-poller');
+const inboxURL = 'https://hsf-test.ds.bhhsresource.com/inbox/';
 
-const app = new Poller({
-  inboxURL: "https://dave.yodata.me/inbox/",
-  handleMessage: async message => {
-    // do some work with `message`
-    let result = message;
-
-    // throw to fire 'message:process:failed'
-    throw new Error("the message failed to process");
-
-    // always return (with an optional result) to resolve
-    // and fire 'message:process:completed'
-    return result;
+async function handleMessage(message) {
+  // do something with the message;
+  // optionally return an event
+  return {
+    type: 'Action',
+    actionStatus: 'CompletedActionStatus',
+    object: message,
+    result: 'some result value'
   }
-});
+}
 
-app.on("message:process:completed", event => {
-  console.log(event);
-  // event value:
-  // {
-  //   type: message:process:completed,
-  //   value: (your returned value)
-  // }
-});
+const app = Service.create(inboxURL, handleMessage);
 
-app.on("message:process:failed", event => {
-  console.log(event);
-  // event value:
-  // {
-  //   type: message:process:failed
-  //   error: [Error: the message failed to process]
-  //   value: {
-  //     message: {..}
-  //   }
-  // }
+app.on('dispatch', event => {
+  switch (event.type) {
+    case Service.eventType.MESSAGE_PROCESS_COMPLETED:
+      console.log(event.type, event.result);
+      break;
+    case Service.eventType.MESSAGE_PROCESS_FAILED:
+      console.log(event.type, event.result);
+      break;
+    default:
+      console.log(event.type);
+  }
 });
 
 app.start();
@@ -66,19 +57,36 @@ export YODATA_API_KEY=...
 If you need to specify your credentials manually, you can use a pre-configured inbox instance.
 
 ```js
-const Poller = require("yodata-inbox-poller");
-const Inbox = require("yodata-inbox-client");
+const Service = require("yodata-inbox-poller");
 
-const customInbox = new Inbox({
-  inboxURL: "url"
-  headers: {
-    "x-api-key": "xxx"
+const customInbox = {
+  async get(url){
+    try {
+      // fetch results and return in the following schema
+      return {
+        type: 'inbox:fetch:completed',
+        object: url,
+        result: {
+          messages: [] // array of fetched messages
+      }}  
+    }
+    catch (error) {
+      throw {
+        type: 'inbox:fetch:failed',
+        object: url,
+        error: error.message,
+        result: {
+          error: error
+        }
+      }
+    }
   }
-});
+};
 
-const app = new Poller({
+
+const app = new Service({
   inboxURL: "https://dave.yodata.me/inbox/",
-  handleMessage: async (message) => {...},
+  handleMessage: handleMessage,
   inbox: customInbox
 });
 
@@ -89,7 +97,7 @@ app.start();
 
 ### `new Poller(options)`
 
-Creates a new poller.
+Creates a new poller Service.
 
 #### Options
 
@@ -109,29 +117,29 @@ Stop polling for messages.
 
 Each poller is an [`EventEmitter`](http://nodejs.org/api/events.html) and emits the following events:
 
-```javascript
-// file: /constants.js
+```markdown
 // .start()
-module.exports.SERVICE_START = "service:start";
-// .stop(error value)
-module.exports.SERVICE_STOP = "service:stop";
-module.exports.SERVICE_STOP_COMPLETED = "service:stop:completed";
+.emit("service:start") 
+
+// .stop(error)
+.emit("service:stop")
+.emit("service:stop:completed")
 
 // .run(next) main event loop
-module.exports.SERVICE_PROCESS_START = "service:process:start";
-module.exports.SERVICE_PROCESS_COMPLETED = "service:process:completed";
-module.exports.SERVICE_PROCESS_FAILED = "service:process:failed";
+.emit("service:process:start")
+.emit("service:process:completed")
+.emit("service:process:failed")
 
 // _poll()
-module.exports.INBOX_FETCH_COMPLETED = "inbox:fetch:completed";
-module.exports.INBOX_FETCH_FAILED = "inbox:fetch:failed";
-module.exports.INBOX_EMPTY = "inbox:empty";
+.emit("inbox:fetch:completed");
+.emit("inbox:fetch:failed")
+.emit("inbox:empty")
 
 // .processResponse(inboxResponse)
-module.exports.RESPONSE_PROCESS_COMPLETED = "response:process:completed";
-module.exports.RESPONSE_PROCESS_FAILED = "response:process:failed";
+.emit("response:process:completed")
+.emit("response:process:failed")
 
 // .handleMessage(message)
-module.exports.MESSAGE_PROCESS_COMPLETED = "message:process:completed";
-module.exports.MESSAGE_PROCESS_FAILED = "message:process:failed";
+.emit("message:process:completed")
+.emit("message:process:failed")
 ```
